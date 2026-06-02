@@ -459,8 +459,9 @@ class DailyAutomation {
   }
 
   async logAutomationEvent(eventType, status, data = {}) {
+    // created_at is populated by the column DEFAULT (CURRENT_TIMESTAMP).
     await this.db.executeQuery(
-      'INSERT INTO automation_events (event_type, status, data, created_at) VALUES (?, ?, ?, datetime("now"))',
+      'INSERT INTO automation_events (event_type, status, data) VALUES (?, ?, ?)',
       [eventType, status, JSON.stringify(data)]
     );
   }

@@ -2,6 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs').promises;
 const { Logger } = require('../utils/logger');
+const { escapeXml } = require('../utils/security');
 
 class ThumbnailDesignerAgent {
   constructor(db, credentials) {
@@ -278,12 +279,12 @@ class ThumbnailDesignerAgent {
         </style>
         
         <!-- Shadow -->
-        <text x="642" y="302" class="primary shadow">${concept.primaryText}</text>
-        <text x="642" y="402" class="secondary shadow">${concept.secondaryText}</text>
-        
+        <text x="642" y="302" class="primary shadow">${escapeXml(concept.primaryText)}</text>
+        <text x="642" y="402" class="secondary shadow">${escapeXml(concept.secondaryText)}</text>
+
         <!-- Main text -->
-        <text x="640" y="300" class="primary">${concept.primaryText}</text>
-        <text x="640" y="400" class="secondary">${concept.secondaryText}</text>
+        <text x="640" y="300" class="primary">${escapeXml(concept.primaryText)}</text>
+        <text x="640" y="400" class="secondary">${escapeXml(concept.secondaryText)}</text>
       </svg>
     `;
     

@@ -303,11 +303,23 @@ youtube-automation-agent/
 
 ## 🔒 Security & Privacy
 
-- All API keys are stored locally in encrypted configuration
-- No content is sent to external services except configured APIs
-- Local database with automatic backups
-- Rate limiting to respect API quotas
-- Error logging without sensitive data exposure
+- API keys and OAuth tokens are stored **locally** in `config/` (git-ignored).
+  They are written with owner-only permissions (`0600`) and are **encrypted at
+  rest with AES-256-GCM when you set the `CREDENTIAL_KEY` environment variable**
+  (recommended). Without `CREDENTIAL_KEY` they are stored as `0600` plaintext.
+- The HTTP server binds to **`127.0.0.1` (localhost) by default**. Set `HOST`
+  only if you intend to expose it, and keep the API token + a firewall in place.
+- Privileged routes (`/generate`, `/publish`) require an **API token** (sent as
+  `Authorization: Bearer <token>` or `x-api-token`) and a same-origin check.
+  A token is auto-generated on first start and printed in the startup banner.
+- **Rate limiting** and request body-size limits are enforced on the API.
+- Paid AI generation is **off by default** (`AI_GENERATION_ENABLED=false`) to
+  prevent unexpected cost; enable it explicitly and cap with `AI_MAX_VISUAL_ASSETS`.
+- No content is sent to external services except the AI/YouTube APIs you configure.
+- Error responses are generic; detailed errors are logged locally only.
+
+> ⚠️ Run `npm audit` after install and apply updates. Treat the dashboard/API as
+> a privileged local control plane — do not expose it to untrusted networks.
 
 ## 📈 Performance Optimization
 

@@ -13,6 +13,9 @@ config/tokens.json
 config/*.key
 config/*.pem
 
+# Auto-generated API token for the local dashboard/API
+.api-token
+
 # API Keys and Secrets
 *.key
 *.pem
@@ -25,6 +28,14 @@ data/*.sqlite
 data/*.db-journal
 *.db-shm
 *.db-wal
+
+# Generated content artifacts (should not be committed)
+data/assets/
+data/audio/
+data/captions/
+data/scripts/
+data/videos/
+data/production/
 
 # Logs
 logs/

@@ -250,6 +250,26 @@
     </button>
     
     <script>
+        // Escape untrusted values before inserting them via innerHTML (prevents XSS).
+        function esc(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Retrieve (and lazily prompt for) the API token required by privileged routes.
+        function getApiToken(forcePrompt) {
+            let token = localStorage.getItem('omc_api_token');
+            if (!token || forcePrompt) {
+                token = window.prompt('Enter the API token (printed in the server startup banner):', '');
+                if (token) localStorage.setItem('omc_api_token', token.trim());
+            }
+            return token ? token.trim() : '';
+        }
+
         // Dashboard functionality
         async function loadDashboard() {
             try {
@@ -291,8 +311,8 @@
             
             const agentStatus = document.getElementById('agent-status');
             if (data.agents) {
-                agentStatus.innerHTML = data.agents.map(agent => 
-                    `<div class="schedule-item">✅ ${agent} Agent</div>`
+                agentStatus.innerHTML = data.agents.map(agent =>
+                    `<div class="schedule-item">✅ ${esc(agent)} Agent</div>`
                 ).join('');
             }
         }
@@ -303,8 +323,8 @@
             if (data && data.length > 0) {
                 schedule.innerHTML = data.slice(0, 3).map(item => `
                     <div class="schedule-item">
-                        <strong>${item.title || 'Content Generation'}</strong><br>
-                        <small>${new Date(item.publishTime || item.scheduledTime).toLocaleString()}</small>
+                        <strong>${esc(item.title || 'Content Generation')}</strong><br>
+                        <small>${esc(new Date(item.publishTime || item.scheduledTime).toLocaleString())}</small>
                     </div>
                 `).join('');
                 
@@ -343,8 +363,8 @@
                 document.getElementById('published-count').textContent = data.totalVideos || '0';
                 
                 metrics.innerHTML = `
-                    <p><strong>Average Performance:</strong> ${data.averagePerformanceScore || 'N/A'}</p>
-                    <p><strong>Total Content:</strong> ${data.totalVideos || 0}</p>
+                    <p><strong>Average Performance:</strong> ${esc(data.averagePerformanceScore || 'N/A')}</p>
+                    <p><strong>Total Content:</strong> ${esc(data.totalVideos || 0)}</p>
                     <p><strong>System Health:</strong> Excellent</p>
                 `;
             } else {
@@ -373,19 +393,29 @@
         }
         
         async function generateContent() {
-            if (confirm('Generate content now? This will create a new video for your channel.')) {
-                try {
-                    const response = await fetch('/generate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ topic: null, style: 'story' })
-                    });
-                    const result = await response.json();
-                    alert(`Content generation started! Title: ${result.result?.title || 'New Content'}`);
-                    refreshDashboard();
-                } catch (error) {
-                    alert('Content generation failed. Please try again.');
+            if (!confirm('Generate content now? This will create a new video for your channel.')) return;
+            const token = getApiToken(false);
+            if (!token) { alert('An API token is required to generate content.'); return; }
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-token': token },
+                    body: JSON.stringify({ topic: null, style: 'story' })
+                });
+                if (response.status === 401) {
+                    getApiToken(true); // prompt for a fresh token
+                    alert('Unauthorized — please re-enter the API token and try again.');
+                    return;
                 }
+                const result = await response.json();
+                if (!response.ok) {
+                    alert('Content generation failed: ' + esc(result.error || 'unknown error'));
+                    return;
+                }
+                alert('Content generation started! Title: ' + (result.result?.title || 'New Content'));
+                refreshDashboard();
+            } catch (error) {
+                alert('Content generation failed. Please try again.');
             }
         }
         

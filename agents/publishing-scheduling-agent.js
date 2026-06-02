@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const { Logger } = require('../utils/logger');
 
@@ -152,13 +153,20 @@ class PublishingSchedulingAgent {
   }
 
   async getVideoStream(videoPath) {
-    // In a real implementation, this would return a file stream
-    // For now, we'll simulate it
-    return JSON.stringify({
-      message: 'Video stream would be provided here',
-      path: videoPath,
-      timestamp: new Date().toISOString()
-    });
+    // Return a real readable stream of the rendered video. Refuse to "upload"
+    // placeholder/simulation artifacts (e.g. .info / .assembly.json), which would
+    // otherwise push garbage to YouTube.
+    if (!videoPath || typeof videoPath !== 'string') {
+      throw new Error('No video path provided for upload');
+    }
+    if (path.extname(videoPath).toLowerCase() !== '.mp4') {
+      throw new Error(
+        `Refusing to upload non-video asset: ${path.basename(videoPath)}. ` +
+        'Enable real rendering (AI_GENERATION_ENABLED=true) before publishing.'
+      );
+    }
+    await fs.access(videoPath); // throws if the file does not exist
+    return fsSync.createReadStream(videoPath);
   }
 
   async uploadThumbnail(videoId, thumbnailPath) {

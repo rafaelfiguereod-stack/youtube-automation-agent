@@ -61,8 +61,19 @@ class AnalyticsOptimizationAgent {
       // Generate insights and recommendations
       const insights = await this.generateInsights(videoDetails, analytics, thumbnailMetrics, seoMetrics);
       
+      if (analytics.simulated) {
+        this.logger.warn(`Analytics for ${videoId} are SIMULATED (API unavailable) — not real metrics`);
+        insights.unshift({
+          type: 'warning',
+          category: 'data-quality',
+          message: 'Analytics are simulated/estimated — the Analytics API was unavailable. Do not treat as real metrics.',
+          impact: 'high'
+        });
+      }
+
       const performanceReport = {
         videoId,
+        dataQuality: analytics.simulated ? 'simulated' : 'real',
         videoDetails,
         analytics,
         thumbnailMetrics,
@@ -265,15 +276,22 @@ class AnalyticsOptimizationAgent {
   async calculateEngagementMetrics(videoId) {
     const videoDetails = await this.getVideoDetails(videoId);
     const stats = videoDetails.statistics;
-    
-    const engagementRate = ((stats.likeCount + stats.commentCount) / stats.viewCount * 100).toFixed(2);
-    const likeRatio = (stats.likeCount / (stats.likeCount + (stats.dislikeCount || 0)) * 100).toFixed(2);
-    
+
+    // Guard against divide-by-zero when a video has no views yet.
+    const views = stats.viewCount > 0 ? stats.viewCount : 0;
+    const engagementRate = views > 0
+      ? ((stats.likeCount + stats.commentCount) / views * 100)
+      : 0;
+    // Dislikes are no longer exposed by the YouTube API, so express "like rate"
+    // as likes per view rather than the old (broken) likes/(likes+dislikes).
+    const likeRate = views > 0 ? (stats.likeCount / views * 100) : 0;
+    const commentsPerView = views > 0 ? (stats.commentCount / views * 100) : 0;
+
     return {
-      engagementRate: parseFloat(engagementRate),
-      likeRatio: parseFloat(likeRatio),
-      commentsPerView: (stats.commentCount / stats.viewCount * 100).toFixed(4),
-      engagementQuality: this.assessEngagementQuality(parseFloat(engagementRate))
+      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      likeRate: parseFloat(likeRate.toFixed(2)),
+      commentsPerView: parseFloat(commentsPerView.toFixed(4)),
+      engagementQuality: this.assessEngagementQuality(engagementRate)
     };
   }
 
@@ -615,9 +633,12 @@ class AnalyticsOptimizationAgent {
     return recommendations;
   }
 
-  // Simulation methods for when API is not available
+  // Simulation methods for when API is not available.
+  // NOTE: `simulated: true` is propagated into the persisted report so downstream
+  // consumers can distinguish fabricated data from real analytics.
   getSimulatedAnalytics(videoId) {
     return {
+      simulated: true,
       views: { totalViews: Math.floor(Math.random() * 50000), averageCTR: Math.random() * 10 },
       watchTime: { averageViewPercentage: Math.random() * 100 },
       engagement: { engagementRate: Math.random() * 10 },

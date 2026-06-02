@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs').promises;
+const crypto = require('crypto');
 const { Logger } = require('../utils/logger');
 const { AIVideoGenerator } = require('../utils/ai-video-generator');
 
@@ -11,6 +12,10 @@ class ProductionManagementAgent {
     this.pipeline = [];
     this.assets = new Map();
     this.aiVideoGenerator = new AIVideoGenerator(credentials);
+    // Paid AI media generation is OFF unless explicitly enabled, and capped.
+    // This prevents an (authenticated) /generate call from running up unbounded cost.
+    this.aiEnabled = process.env.AI_GENERATION_ENABLED === 'true';
+    this.maxVisualAssets = Math.max(1, parseInt(process.env.AI_MAX_VISUAL_ASSETS, 10) || 5);
   }
 
   async initialize() {
@@ -116,9 +121,8 @@ class ProductionManagementAgent {
 
   generateProductionId() {
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 15);
-    const extra = Math.random().toString(36).substring(2, 15);
-    return `prod_${timestamp}_${random}_${extra}`;
+    // Cryptographically-strong, collision-resistant suffix.
+    return `prod_${timestamp}_${crypto.randomBytes(12).toString('hex')}`;
   }
 
   async processScript(script) {
@@ -208,6 +212,9 @@ class ProductionManagementAgent {
 
   async processThumbnail(thumbnail) {
     try {
+      if (!this.aiEnabled) {
+        throw new Error('AI generation disabled; using local thumbnail');
+      }
       // Try to generate AI thumbnail first
       const script = thumbnail.script || { title: 'Ethereal Dreamscript Video' };
       const aiThumbnail = await this.aiVideoGenerator.generateThumbnail(script, 'ethereal');
@@ -283,7 +290,12 @@ class ProductionManagementAgent {
 
   async generateVideoContent(productionData) {
     this.logger.info('Generating AI video content...');
-    
+
+    if (!this.aiEnabled) {
+      this.logger.warn('AI generation disabled (set AI_GENERATION_ENABLED=true to enable); using placeholder visuals');
+      return await this.createVideoElements(productionData);
+    }
+
     try {
       const { strategy, script } = productionData;
       
@@ -405,7 +417,12 @@ class ProductionManagementAgent {
 
   async generateAudioNarration(productionData) {
     this.logger.info('Generating AI audio narration...');
-    
+
+    if (!this.aiEnabled) {
+      this.logger.warn('AI generation disabled; simulating audio narration');
+      return await this.simulateAudioGeneration(productionData);
+    }
+
     try {
       const { script } = productionData;
       const audioPath = path.join(__dirname, '..', 'data', 'audio', `${productionData.id}_narration.mp3`);
@@ -557,7 +574,12 @@ class ProductionManagementAgent {
 
   async assembleVideo(productionData) {
     this.logger.info('Assembling final AI-generated video...');
-    
+
+    if (!this.aiEnabled) {
+      this.logger.warn('AI generation disabled; simulating video assembly');
+      return await this.simulateVideoAssembly(productionData);
+    }
+
     try {
       const finalVideoPath = path.join(__dirname, '..', 'data', 'videos', `${productionData.id}_final.mp4`);
       
@@ -657,8 +679,9 @@ class ProductionManagementAgent {
     while (prompts.length < 3) {
       prompts.push('ethereal dreamscape, mystical storytelling, creative visualization');
     }
-    
-    return prompts.slice(0, 5); // Limit to 5 for cost control
+
+    // Cap the number of paid image generations (configurable via AI_MAX_VISUAL_ASSETS).
+    return prompts.slice(0, this.maxVisualAssets);
   }
 
   // Fallback simulation methods

@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
+const { readJsonSecureSync } = require('./utils/secure-store');
 
 async function authenticate() {
   console.log(chalk.cyan.bold('\n🔐 YouTube Authentication Setup'));
@@ -10,7 +11,7 @@ async function authenticate() {
   try {
     // Load credentials
     const credentialsPath = path.join(__dirname, 'config', 'credentials.json');
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath));
+    const credentials = readJsonSecureSync(credentialsPath);
     
     const oauth2Client = new google.auth.OAuth2(
       credentials.youtube.client_id,
