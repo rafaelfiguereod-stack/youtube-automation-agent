@@ -267,7 +267,7 @@ modules: `utils/security.js` (escaping, SSRF URL guard, token + same-origin midd
 |----|-----|-------------------|
 | B-1 | Added `sharp` to dependencies | `npm start` boots; `node test.js` 5/5 pass |
 | H-1 | Token auth (`Authorization: Bearer`/`x-api-token`) + same-origin check on `/generate` & `/publish`; server now binds `127.0.0.1` by default (`HOST` to override) | No-token → **401**, wrong token → **401**, foreign Origin → **403**, banner shows `127.0.0.1` (all verified live) |
-| H-2 | `npm audit fix` + `sharp` (replaces unused `jimp`) + `sqlite3@^6` | **33 vulns (14 high) → 6 moderate, 0 high/critical** (`npm audit`) |
+| H-2 | `npm audit fix` + `sharp` (replaces unused `jimp`) + `sqlite3@^6` + `node-cron@^4` | **33 vulns (14 high) → 5 moderate, 0 high/critical** (`npm audit`) |
 | H-3 | FFmpeg calls converted from `exec` (shell) to `execFile` (arg arrays) | `utils/ai-video-generator.js` — no shell interpolation |
 | H-4 | Credentials/tokens encrypted at rest (AES-256-GCM via `CREDENTIAL_KEY`), else `0600`; README claim corrected | Round-trip test: on-disk has **no plaintext**, `alg=aes-256-gcm`, decrypts back |
 | H-5 | `helmet` (CSP + headers), `express-rate-limit` (global 120/min, `/generate` 5/min), `express.json({limit:'64kb'})` | CSP/X-Frame/X-Content-Type headers present; 6th `/generate` → **429** (verified) |
@@ -287,11 +287,15 @@ modules: `utils/security.js` (escaping, SSRF URL guard, token + same-origin midd
 | B-4 | Fixed divide-by-zero + removed undefined `dislikeCount` (now `likeRate`) | `analytics-optimization-agent.js` |
 | B-5 | `getVideoStream` returns a real validated `.mp4` stream; refuses placeholders | `publishing-scheduling-agent.js` |
 
-**Residual:** 6 *moderate* advisories remain — all the transitive `uuid` v3/v5/v6 buffer
-bounds-check (via `googleapis`/`node-cron`/speech-sdk). Not exploitable here (the app never
-passes a `buf` to `uuid`); clearing them needs breaking major bumps of those libraries. New
-config knobs are documented in `.env.example` (`HOST`, `API_TOKEN`, `CREDENTIAL_KEY`,
-`AI_GENERATION_ENABLED`, `AI_MAX_VISUAL_ASSETS`, `ALLOWED_HOSTS`).
+**Residual:** 5 *moderate* advisories remain — the transitive `uuid` v3/v5/v6 buffer
+bounds-check pulled in by `googleapis-common` and `microsoft-cognitiveservices-speech-sdk`.
+Not exploitable here (the app never passes a `buf` to `uuid`). `node-cron` was bumped to v4
+(its nested `uuid` is now patched; the scheduler was adapted with a v3/v4-compatible
+`isTaskActive` helper and re-verified). Clearing the last 5 would require destructive bumps
+— `googleapis` 128 → 173 (drags in `@angular/core` + polyfills) and a **downgrade** of the
+speech SDK 1.45 → 1.13 — which is a worse trade than the non-exploitable advisory, so they
+are intentionally left. New config knobs are documented in `.env.example` (`HOST`,
+`API_TOKEN`, `CREDENTIAL_KEY`, `AI_GENERATION_ENABLED`, `AI_MAX_VISUAL_ASSETS`, `ALLOWED_HOSTS`).
 
 ---
 
